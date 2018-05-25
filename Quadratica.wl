@@ -56,6 +56,8 @@ FromGeneralForm::usage =
 ToGeneralForm::usage =
  "Converts the generally case quadratic form to the qp ordered one.";
 
+CovarianceMatrixOfExponent::usage= "Returns the covariance matrix of a density matrix in exponential form";
+
 
 (* ::Subsection:: *)
 (*General symbol evaluation*)
@@ -72,6 +74,15 @@ AntinormalSymbol::usage =
 
 ExponentFromAntinormalSymbol::usage =
   "Calculates the exponent from the antinormal form.";
+
+
+(* ::Subsection:: *)
+(*Partial trase*)
+
+
+CovarianceMeanTrace::usage =
+  "Trace with respect to modes listed in \!\(\*
+StyleBox[\"traceOff\",\nFontSlant->\"Italic\"]\)";
 
 
 (* ::Subsection:: *)
@@ -97,6 +108,16 @@ QuantumChannel::usage =
 
 LindbdladStationaryState::usage =
   "Calcualte a stationary state if the Lindblad equation with a given generator.";
+
+
+(* ::Subsection:: *)
+(*Informational and thermodynamical quantities*)
+
+
+EntropyOfGussianState::usage =
+  "Calculates the entropy of a Gaussian state.";
+RelativeEntropyOfGussianState::usage =
+  "Calculates the relative entropy of a Gaussian state.";
 
 
 (* ::Subchapter:: *)
@@ -300,7 +321,23 @@ NormalSymbolTraceTransform[x_, traceOff_]:=
 	{R, q, s} = x;
 	n = Length[R]/2 ;
 	T = Inverse[TraceTransform[traceOff, n]];
-	{Transpose[T]R.T, T.q, s} 
+	{Transpose[T].R.T, T.q, s} 
+  ];
+
+CovarianceMeanTraceTransform[x_, traceOff_]:=
+  Module[{C, m, n,  T},
+	{C, m} = x;
+	n = Length[C]/2 ;
+	T = Inverse[TraceTransform[traceOff, n]];
+	{Transpose[T].C.T, T.m} 
+  ];
+
+CovarianceMeanTrace[x_, traceOff_]:=
+  Module[{C, m, n, l},
+	{C, m} = CovarianceMeanTraceTransform[x, traceOff];
+	n = Length[C]/2 ;
+	l = Length[traceOff];
+	{C[[2 l+1 ;; 2n , 2 l+1 ;; 2n]], m[[2 l+1 ;; 2n]]}
   ];
 
 
@@ -704,7 +741,7 @@ ExponentFromWeylSymbol[x_]:=
 (*Trace - class and density matrix calculations*)
 
 
-(* ::Subsubsection::Closed:: *)
+(* ::Subsubsection:: *)
 (*Moments*)
 
 
@@ -839,6 +876,37 @@ LindbdladStationaryState[Gen_]:=
   ];
 
 
+(* ::Subsection:: *)
+(*Informational and thermodynamical quantities*)
+
+
+(* ::Subsubsection:: *)
+(*von Neumann entropy S(\[Rho]) = -Tr \[Rho] Log \[Rho]*)
+
+
+EntropyOfGussianState[GussianState_]:=
+Module[{C,n,Jn},
+	(* Covariance matrix *)
+	C = GussianState[[1]];
+	n = Length[C]/2;
+	Jn = J[n];
+	1/2 (Log[Abs[Det[C+1/2 Jn]]]+Tr[Jn.C.MatrixLog[Inverse[C+1/2 Jn].(C-1/2 Jn)]])
+  ];
+
+
+(* ::Subsubsection:: *)
+(*Relative entropy S (\[Rho] || \[Sigma]) = Tr \[Rho] Log \[Rho] - Tr \[Rho] Log \[Sigma]*)
+
+
+RelativeEntropyOfGussianState[GussianState1_,GussianState2_]:=
+Module[{C1, C2,n,Jn},
+	(* Covariance matrix *)
+	C1 = GussianState1[[1]];
+	C2 = GussianState2[[1]];
+	n = Length[C1]/2;
+	Jn = J[n];
+	1/2 (Log[Abs[Det[C2+1/2 Jn]]]-Log[Abs[Det[C1+1/2 Jn]]]+Tr[Jn.C1.MatrixLog[Inverse[C2+1/2 Jn].(C2-1/2 Jn)]]-Tr[Jn.C1.MatrixLog[Inverse[C1+1/2 Jn].(C1-1/2 Jn)]])
+  ];
 
 
 (* ::Section:: *)
@@ -851,6 +919,36 @@ LindbdladStationaryState[Gen_]:=
 
 (* ::Subsection:: *)
 (*Normal Symbol Evaluation*)
+
+
+(* ::Subsection:: *)
+(*Lindblad equation*)
+
+
+(* ::Subsubsection:: *)
+(*Anticovariance matrix representation*)
+
+
+LindbdladEvolutionF[Gen_, initCond_, t_]:=
+  Module[{A0,A, H, \[CapitalGamma],n, En},
+	A0 = initCond[[1]]; (* Initial covariance matrix *)
+	(* Parameters of Lindbdal generator *)
+	H = Gen[[1]]; \[CapitalGamma] = Gen[[2]];
+	n = Length[H]/2;
+En = EE[n];
+	(* Anticovariance matrix evolution *)
+	 A = (#[[1;;2 n]].Inverse[#[[2n+1;;4 n]]])&[MatrixExp[t ArrayFlatten[
+ ({
+ {En.(-I H - 1/2 (\[CapitalGamma]+Transpose[\[CapitalGamma]])), 1/2 En.(Transpose[\[CapitalGamma]]-\[CapitalGamma]).En},
+ {0 IdentityMatrix[2 n], (-I H + 1/2 (\[CapitalGamma]+Transpose[\[CapitalGamma]])).En}
+})
+].ArrayFlatten[({
+ {A0},
+ {IdentityMatrix[2 n]}
+})]]];
+	(* Return covariance matrix*)	
+	{A}
+  ];
 
 
 (* ::Subchapter::Closed:: *)
